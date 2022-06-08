@@ -1,52 +1,80 @@
-import { ConstantPool } from '@angular/compiler';
 import { Injectable } from '@angular/core';
+
+import 'firebase/firestore';
 import { AngularFireAuth } from '@angular/fire/compat/auth';
 import { AngularFirestore } from '@angular/fire/compat/firestore';
-import { Router } from '@angular/router';
-import { map } from 'rxjs/operators'
+
+import { Store } from '@ngrx/store';
+import { AppState } from '../app.reducer';
+import * as authActions from '../auth/auth.actions';
+
+import { map } from 'rxjs/operators';
 import { Usuario } from '../models/usuario.model';
+import { Subscription } from 'rxjs';
 
 @Injectable({
   providedIn: 'root'
 })
 export class AuthService {
 
-  constructor( private auth: AngularFireAuth, private router: Router, private firestore: AngularFirestore ) { }
+  userSubscription!: Subscription;
 
-  initAuthListener(){
-    this.auth.authState.subscribe(fuser=>
-      {
-        console.log(fuser);
-        console.log(fuser?.uid);
-        console.log(fuser?.email);
+  constructor( public auth: AngularFireAuth,
+               private firestore: AngularFirestore,
+               private store: Store<AppState>) { }
+
+  initAuthListener() {
+
+    this.auth.authState.subscribe( fuser => {
+      if ( fuser ) {
+        // existe
+        this.userSubscription = this.firestore.doc(`${ fuser.uid }/usuario`).valueChanges()
+          .subscribe( (firestoreUser: any) => {
+            
+            console.log({firestoreUser});
+
+            const user = Usuario.fromFirebase(firestoreUser.nombre,firestoreUser.uid, firestoreUser.email );
+            this.store.dispatch( authActions.setUser({ user }) );
+          })
+
+      } else {
+        // no existe
+        this.userSubscription.unsubscribe();
+        this.store.dispatch( authActions.unSetUser() );
       }
-      )
-  }
 
-  crearUsuario(nombre:string, email:string, password:string){
-  //console.log({nombre, email,password});
-
- return this.auth.createUserWithEmailAndPassword(email,password).
- then(({ user }) =>{
-   const newUser = new Usuario(user!.uid, nombre,email);
-
-  return this.firestore.doc(`${ user!.uid }/usuario` ).set( {...newUser} )
- })
+    });
 
   }
 
-  loginUsuario(email:string, password:string){
-    return this.auth.signInWithEmailAndPassword(email,password);
+
+
+  crearUsuario( nombre:string, email: string, password: string ) {
+
+    // console.log({ nombre, email, password });
+    return this.auth.createUserWithEmailAndPassword( email, password )
+            .then( ({ user }) => {
+
+              const newUser = new Usuario( user!.uid, nombre, email );
+
+              return this.firestore.doc(`${ user!.uid }/usuario`).set({ ...newUser });
+
+            });
+
+  }
+
+  loginUsuario( email:string, password:string) {
+    return this.auth.signInWithEmailAndPassword( email, password );
   }
 
   logout() {
-  return this.auth.signOut();    
+    return this.auth.signOut();
   }
 
-  isAuth(){
+  isAuth() {
     return this.auth.authState.pipe(
-      map(fuser => fuser != null)
+      map( fbUser => fbUser != null )
     );
   }
-  
+
 }

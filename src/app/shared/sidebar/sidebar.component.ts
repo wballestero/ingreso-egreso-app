@@ -1,28 +1,23 @@
 import { Component, OnInit } from '@angular/core';
-import { AuthService } from '../../services/auth.service';
 import { Router } from '@angular/router';
-import Swal from 'sweetalert2'
+
+import { AuthService } from '../../services/auth.service';
+
 @Component({
   selector: 'app-sidebar',
   templateUrl: './sidebar.component.html',
-  styles: [
-  ]
+  styles: []
 })
 export class SidebarComponent implements OnInit {
 
-  constructor(private authService: AuthService, private router: Router) { }
+  constructor( private authService: AuthService,
+               private router: Router) { }
 
-  ngOnInit(): void {
+  ngOnInit() {
   }
-  logout(){
-    Swal.fire({
-      title: 'Espere por favor!',
-      didOpen:()=>{
-      Swal.showLoading()
-      }
-    });
-    this.authService.logout().then(()=>{
-      Swal.close();
+
+  logout() {
+    this.authService.logout().then( () => {
       this.router.navigate(['/login']);
     })
 

@@ -1,51 +1,83 @@
-import { THIS_EXPR } from '@angular/compiler/src/output/output_ast';
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { FormGroup, FormBuilder, Validators } from '@angular/forms';
-import { AuthService } from '../../services/auth.service';
-import { Routes, Router } from '@angular/router';
+import { Router } from '@angular/router';
+
+import { Store } from '@ngrx/store';
+import { AppState } from '../../app.reducer';
+import * as ui from '../../shared/ui.actions';
+
 import Swal from 'sweetalert2'
+import { AuthService } from '../../services/auth.service';
+
+import { Subscription } from 'rxjs';
+
 @Component({
   selector: 'app-login',
   templateUrl: './login.component.html',
-  styles: [
-  ]
+  styles: []
 })
-export class LoginComponent implements OnInit {
+export class LoginComponent implements OnInit, OnDestroy {
+
   loginForm!: FormGroup;
+  cargando: boolean = false;
+  uiSubscription!: Subscription;
 
-  constructor(private fb: FormBuilder, private authService: AuthService, private router: Router) { }
 
-  ngOnInit(): void {
+  constructor( private fb: FormBuilder,
+               private authService: AuthService,
+               private store: Store<AppState>,
+               private router: Router ) { }
+
+  ngOnInit() {
     this.loginForm = this.fb.group({
-      email!:['',[Validators.required, Validators.email]],
-      password!:['',Validators.required]
-    })
+      email: ['', [Validators.required, Validators.email]],
+      password: ['', Validators.required ],
+    });
+
+    this.uiSubscription = this.store.select('ui')
+                              .subscribe( ui => {
+                                this.cargando = ui.isLoading;
+                                console.log('cargando subs');
+                              });
+
   }
 
-  loginUsuario(){
-    if(this.loginForm.invalid){return}
-  
-    Swal.fire({
-      title: 'Espere por favor!',
-      didOpen:()=>{
-      Swal.showLoading()
-      }
-    });
-  
+  ngOnDestroy() {
+    this.uiSubscription.unsubscribe();
+  }
 
-    const {email, password} = this.loginForm.value;
-    this.authService.loginUsuario(email,password).then(credenciales=>{
-      console.table(credenciales);
-      Swal.close();
-      this.router.navigate(['/']);
-    }).catch(err=> 
-      Swal.fire({
-        icon: 'error',
-        title: 'Oops...',
-        text: err.message
+  login() {
+
+    if ( this.loginForm.invalid ) { return; }
+
+    this.store.dispatch( ui.isLoading() );
+
+
+    // Swal.fire({
+    //   title: 'Espere por favor',
+    //   onBeforeOpen: () => {
+    //     Swal.showLoading()
+    //   }
+    // });
+
+    const { email, password } = this.loginForm.value;
+
+    this.authService.loginUsuario( email, password )
+      .then( (credenciales:any) => {
+        console.log(credenciales);
+        // Swal.close();
+        this.store.dispatch( ui.stopLoading() );
+        this.router.navigate(['/']);
       })
-      );
-        
+      .catch( (err:any) => {
+        this.store.dispatch( ui.stopLoading() );
+        Swal.fire({
+          icon: 'error',
+          title: 'Oops...',
+          text: err.message
+        })
+      });
+
   }
 
 }
